@@ -1,0 +1,27 @@
+# Environments
+.venv/
+venv/
+__pycache__/
+
+# Datasets and extracted frames
+Data/
+ucf_dataset_proc5/
+ucf_dataset_proc/
+
+# Numpy chunks and extracted features (huge files)
+npy_data_output_15/
+output_numpy5/
+npy_data_output/
+npy_data_output_violent/
+output_features_dinov2/
+extracted_features/
+
+# Model Checkpoints (huge files)
+model/
+train_output/models/
+*.pt
+
+# System files
+.DS_Store
+
+*.mp4
