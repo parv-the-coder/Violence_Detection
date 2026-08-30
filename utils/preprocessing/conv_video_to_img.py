@@ -61,7 +61,8 @@ def process_video(video_path, frame_dir):
             frame_count += 1
             continue
 
-        pil_frame = Image.fromarray(frame)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        pil_frame = Image.fromarray(frame_rgb)
         pil_frame.save(os.path.join(frame_dir, f"{frame_count}.jpg"), quality=JPEG_QUALITY)
         saved += 1
         frame_count += 1
