@@ -40,7 +40,10 @@ def process_video(video_path, frame_dir):
         return 0, 0
 
     source_fps = cap.get(cv2.CAP_PROP_FPS)
-    frame_interval = int(source_fps / TARGET_FPS)
+    if source_fps <= 0:
+        # A few clips report 0 fps in their metadata; assume a sane default
+        source_fps = 25.0
+    frame_interval = max(1, int(source_fps / TARGET_FPS))
 
     saved = 0
     skipped_blur = 0
