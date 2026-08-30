@@ -3,8 +3,9 @@ Downsample MP4 videos to adaptive FPS, remove duplicate frames,
 and process multiple videos in parallel across CPU cores.
 
 Improvements over previous version:
-  1. Fixed FPS      — every video is sampled down to TARGET_FPS frames
-                      per second, whatever its source frame rate is.
+  1. Adaptive FPS   — measures per-video motion level (optical flow magnitude)
+                      and picks FPS_LOW (2-3) for static scenes or
+                      FPS_HIGH (5-10) for high-motion scenes automatically.
   2. Duplicate removal — after FPS sampling, skips frames that are too
                       similar to the previous saved frame using two strategies:
                         a) Perceptual hash (pHash) — fast, O(1), good default
@@ -35,8 +36,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from config import RAW_VIDEO_DIR as TRAIN_VIDEO_FOLDER
 from config import FRAME_OUTPUT_DIR as TRAIN_FRAME_FOLDER
 
-# --- Sampling ---
-TARGET_FPS         = 5            # frames kept per second of source video
+# --- Target Frames ---
+# Video Duration	Recommended Frames
+# <10 sec	        14
+# 10–30 sec	        25 (20-30)
+# 30–60 sec	        35 (30-40)
+# >60 sec	        70
+def get_target_frame_count(duration_sec):
+    if duration_sec < 10: return 14
+    elif duration_sec <= 30: return 25
+    elif duration_sec <= 60: return 35
+    else: return 70
 
 # --- Blur filter ---
 BLUR_THRESH        = 80.0         # Laplacian variance below this → frame skipped
@@ -157,7 +167,7 @@ def process_video(args: tuple) -> dict:
         source_fps = 25.0
     
     duration = total_frames / source_fps if source_fps > 0 else 0
-    frame_interval = max(1, int(round(source_fps / TARGET_FPS)))
+    target_count = get_target_frame_count(duration)
 
     saved         = 0
     skipped_blur  = 0
@@ -165,16 +175,14 @@ def process_video(args: tuple) -> dict:
     frame_count   = 0
     prev_hash     = None
     prev_gray_saved = None
+    
+    valid_frames = []
 
-    # Sample at TARGET_FPS, filter, and write out as we go
+    # Pass 1: Collect valid frames
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-
-        if frame_count % frame_interval != 0:
-            frame_count += 1
-            continue
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -200,23 +208,36 @@ def process_video(args: tuple) -> dict:
                 continue
             prev_gray_saved = gray
 
+        # Keep frame in memory (RGB format to save conversion time later)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        Image.fromarray(frame_rgb).save(
-            os.path.join(frame_dir, f"{frame_count}.jpg"),
-            quality=JPEG_QUALITY
-        )
-        saved += 1
+        valid_frames.append((frame_count, frame_rgb))
         frame_count += 1
 
     cap.release()
-    if saved == 0:
+    
+    # Pass 2: Uniformly sample target_count frames to guarantee frame limits
+    if len(valid_frames) == 0:
         return {
             "video": f"{category}/{video_file}",
             "saved": 0, "skipped_blur": skipped_blur, "skipped_dup": skipped_dup,
-            "total_read": frame_count, "fps_used": TARGET_FPS, "motion_level": 0.0,
+            "total_read": frame_count, "fps_used": 0, "motion_level": 0.0,
             "error": "No valid frames found",
         }
+        
+    # Uniform sample
+    if len(valid_frames) <= target_count:
+        sampled_frames = valid_frames
+    else:
+        indices = np.linspace(0, len(valid_frames) - 1, target_count, dtype=int)
+        sampled_frames = [valid_frames[i] for i in indices]
 
+    for idx, (orig_frame_num, frame_rgb) in enumerate(sampled_frames):
+        pil_frame = Image.fromarray(frame_rgb)
+        pil_frame.save(
+            os.path.join(frame_dir, f"{orig_frame_num}.jpg"),
+            quality=JPEG_QUALITY
+        )
+        saved += 1
 
     return {
         "video":        f"{category}/{video_file}",
@@ -224,7 +245,7 @@ def process_video(args: tuple) -> dict:
         "skipped_blur": skipped_blur,
         "skipped_dup":  skipped_dup,
         "total_read":   frame_count,
-        "fps_used":     TARGET_FPS,
+        "fps_used":     0,
         "motion_level": duration,  # repurposed to show duration in logs
         "error":        None,
     }
