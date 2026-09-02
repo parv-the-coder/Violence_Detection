@@ -22,14 +22,18 @@ from config import (
 
 def preprocess_image(image_path: str) -> np.ndarray:
     """
-    Load, crop to a square, resize to IMAGE_SIZE × IMAGE_SIZE.
+    Load, center-crop, resize to IMAGE_SIZE × IMAGE_SIZE.
     """
     image = Image.open(image_path).convert("RGB")
     w, h = image.width, image.height
 
-    # Crop to a square so the resize below does not distort the frame
+    # Center crop to square
     short_side = min(w, h)
-    image  = image.crop((0, 0, short_side, short_side))
+    left   = (w - short_side) // 2
+    top    = (h - short_side) // 2
+    right  = left + short_side
+    bottom = top  + short_side
+    image  = image.crop((left, top, right, bottom))
 
     image = image.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
     return np.array(image, dtype=np.float32) / 255.0   # [0, 1]
