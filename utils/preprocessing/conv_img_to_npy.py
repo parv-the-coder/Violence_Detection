@@ -70,40 +70,62 @@ def save_chunks(img_paths, labels, split_name):
 def main():
     random.seed(RANDOM_SEED)
 
-    # 1. Discover every extracted frame and label it from its category
-    all_img_paths = []
-    all_labels = []
+    # 1. Discover all video directories and assign video-level labels
+    all_videos = []
     print(f"Scanning extracted frames in {FRAME_OUTPUT_DIR}...")
     for category in sorted(os.listdir(FRAME_OUTPUT_DIR)):
         cat_path = os.path.join(FRAME_OUTPUT_DIR, category)
         if not os.path.isdir(cat_path):
             continue
-
+            
         # Normal category = 0, Anomaly categories = 1
-        label = 0 if "Normal" in category else 1
-
+        is_anomaly = "Normal" not in category
+        label = 1 if is_anomaly else 0
+        
         for video_dir in sorted(os.listdir(cat_path)):
             video_path = os.path.join(cat_path, video_dir)
-            if not os.path.isdir(video_path):
-                continue
+            if os.path.isdir(video_path):
+                # Store (full_path, video_dir_name, label)
+                all_videos.append((video_path, video_dir, label))
+
+    print(f"Found {len(all_videos)} total videos.")
+    if len(all_videos) == 0:
+        print("Error: No processed video directories found. Did you run step 1 (conv_video_to_img.py)?")
+        return
+
+    # 2. Randomly split videos at the video level (80/20)
+    all_videos = sorted(all_videos)  # Sort for deterministic shuffle
+    random.shuffle(all_videos)
+    
+    train_videos, test_videos = train_test_split(
+        all_videos, test_size=TEST_SPLIT_RATIO, random_state=RANDOM_SEED
+    )
+    print(f"Split: {len(train_videos)} train videos | {len(test_videos)} test videos")
+
+    # Helper function to load frame paths
+    def collect_frames_for_videos(video_list):
+        img_paths = []
+        labels = []
+        new_idx = []
+        for video_path, _, label in video_list:
             image_files = sorted(
                 [f for f in os.listdir(video_path) if f.endswith('.jpg')],
                 key=lambda x: int(os.path.splitext(x)[0])
             )
+            if not image_files:
+                continue
+                
+            new_idx.append(len(img_paths))
             for image_file in image_files:
-                all_img_paths.append(os.path.join(video_path, image_file))
-                all_labels.append(label)
+                img_paths.append(os.path.join(video_path, image_file))
+                labels.append(label)
+        return img_paths, labels, new_idx
 
-    print(f"Found {len(all_img_paths)} total frames.")
-    if len(all_img_paths) == 0:
-        print("Error: No processed frames found. Did you run step 1 (conv_video_to_img.py)?")
-        return
-
-    # 2. Shuffle and split the frames 80/20
-    train_img_paths, test_img_paths, train_labels, test_labels = train_test_split(
-        all_img_paths, all_labels, test_size=TEST_SPLIT_RATIO,
-        random_state=RANDOM_SEED, shuffle=True
-    )
+    # 3. Build train/test index lists
+    print("Building train dataset index...")
+    train_img_paths, train_labels, train_new_idx = collect_frames_for_videos(train_videos)
+    print("Building test dataset index...")
+    test_img_paths, test_labels, test_new_idx = collect_frames_for_videos(test_videos)
 
     print(f"\nTrain samples (frames): {len(train_img_paths)} | Test samples (frames): {len(test_img_paths)}")
 
@@ -112,9 +134,11 @@ def main():
     # 4. Process and save chunks
     if train_img_paths:
         save_chunks(train_img_paths, train_labels, "train")
+        np.save(os.path.join(NPY_DATA_DIR, "train_images_new_idx.npy"), np.array(train_new_idx))
         
     if test_img_paths:
         save_chunks(test_img_paths, test_labels, "test")
+        np.save(os.path.join(NPY_DATA_DIR, "test_images_new_idx.npy"), np.array(test_new_idx))
         
     print("\nDone!")
 
