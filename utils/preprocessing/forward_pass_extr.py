@@ -26,11 +26,8 @@ torch.manual_seed(RANDOM_SEED)
 
 
 def get_transform():
-    """Scale pixels to [0, 1] and apply ImageNet normalisation."""
-    return transforms.Compose([
-        transforms.Lambda(lambda tensor: tensor / 255.0),
-        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-    ])
+    """ImageNet normalisation only — images are already [0, 1] from conv_img_to_npy."""
+    return transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
 
 
 def extract_features(images_dir: str, labels_dir: str, split_name: str,
