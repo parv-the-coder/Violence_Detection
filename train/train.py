@@ -37,19 +37,32 @@ if torch.cuda.is_available():
 
 class ViolenceFeatureDataset(Dataset):
     """
-    PyTorch Dataset that extracts sliding windows of length `seq_len` from
-    the continuous feature arrays.
+    PyTorch Dataset that extracts sliding windows of length `seq_len` from 
+    continuous feature arrays, ensuring no window crosses a video boundary.
     """
-    def __init__(self, features, labels, seq_len=SEQUENCE_LENGTH):
+    def __init__(self, features, labels, new_idx, seq_len=SEQUENCE_LENGTH):
         self.features = features
         self.labels = labels
         self.seq_len = seq_len
+        
+        # Create a boolean array where True means a new video starts
+        is_boundary = np.zeros(len(features), dtype=bool)
+        if len(new_idx) > 0:
+            is_boundary[new_idx] = True
+            
+        # Pre-compute valid starting indices
+        # An index `i` is valid if `[i, i + seq_len)` does not contain any boundary
+        # i.e., no True values in `is_boundary[i+1 : i+seq_len]`
+        self.valid_indices = []
+        for i in range(len(features) - seq_len + 1):
+            if not np.any(is_boundary[i+1 : i + seq_len]):
+                self.valid_indices.append(i)
 
     def __len__(self):
-        return max(0, len(self.features) - self.seq_len + 1)
+        return len(self.valid_indices)
 
     def __getitem__(self, idx):
-        start_idx = idx
+        start_idx = self.valid_indices[idx]
         end_idx = start_idx + self.seq_len
         
         # Extract features (seq_len, 768)
@@ -67,11 +80,13 @@ def load_features():
     """Load pre-extracted DINOv2 features and labels."""
     train_features = np.load(os.path.join(FEATURE_OUTPUT_DIR, "train.npy"), allow_pickle=True)
     train_labels = np.load(os.path.join(FEATURE_OUTPUT_DIR, "train_lbl.npy"), allow_pickle=True)
+    train_new_idx = np.load(os.path.join(FEATURE_OUTPUT_DIR, "train_images_new_idx.npy"), allow_pickle=True)
 
     test_features = np.load(os.path.join(FEATURE_OUTPUT_DIR, "test.npy"), allow_pickle=True)
     test_labels = np.load(os.path.join(FEATURE_OUTPUT_DIR, "test_lbl.npy"), allow_pickle=True)
+    test_new_idx = np.load(os.path.join(FEATURE_OUTPUT_DIR, "test_images_new_idx.npy"), allow_pickle=True)
 
-    return train_features, train_labels, test_features, test_labels
+    return train_features, train_labels, train_new_idx, test_features, test_labels, test_new_idx
 
 
 def train_one_epoch(model, optimizer, criterion, dataloader, device):
@@ -153,13 +168,13 @@ def main():
 
     # Load data
     print("Loading features...")
-    train_features, train_labels, test_features, test_labels = load_features()
+    train_features, train_labels, train_new_idx, test_features, test_labels, test_new_idx = load_features()
     print(f"Train features: {train_features.shape}, Test features: {test_features.shape}")
 
     # Create Datasets and DataLoaders
     print("Building datasets...")
-    train_dataset = ViolenceFeatureDataset(train_features, train_labels)
-    test_dataset = ViolenceFeatureDataset(test_features, test_labels)
+    train_dataset = ViolenceFeatureDataset(train_features, train_labels, train_new_idx)
+    test_dataset = ViolenceFeatureDataset(test_features, test_labels, test_new_idx)
     
     if len(train_dataset) == 0:
         print("Error: Train dataset is empty. Check your SEQUENCE_LENGTH or data preprocessing.")
