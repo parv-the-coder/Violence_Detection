@@ -5,6 +5,7 @@ Takes a sequence of DINOv2 spatial embeddings (SEQUENCE_LENGTH frames × 768-dim
 and classifies the segment as Violence or Non-Violence.
 """
 
+import math
 import torch
 import torch.nn as nn
 
@@ -12,6 +13,34 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from config import FEATURE_DIM, SEQUENCE_LENGTH, NUM_HEADS, NUM_TRANSFORMER_LAYERS, DROPOUT, NUM_CLASSES
+
+
+class SinusoidalPositionalEncoding(nn.Module):
+    """
+    Sinusoidal positional encoding as described in 'Attention is All You Need'.
+    Adds position-dependent signals to the input embeddings.
+    """
+
+    def __init__(self, d_model: int, max_len: int = 512, max_wavelength: float = 10000.0):
+        super().__init__()
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float() * (-math.log(max_wavelength) / d_model)
+        )
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)  # (1, max_len, d_model)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x: (batch, seq_len, d_model)
+        Returns:
+            x + positional encoding, same shape
+        """
+        return x + self.pe[:, : x.size(1), :]
 
 
 class TransformerEncoderBlock(nn.Module):
@@ -64,7 +93,7 @@ class TemporalTransformer(nn.Module):
 
     Architecture:
         1. Prepend a learnable CLS token to the sequence
-        2. Add learnable positional embeddings
+        2. Add sinusoidal + learnable positional embeddings
         3. Pass through N Transformer Encoder blocks
         4. Extract CLS token output
         5. Classify via Dense → Sigmoid
@@ -90,8 +119,9 @@ class TemporalTransformer(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, feature_dim))
         nn.init.trunc_normal_(self.cls_token, std=0.02)
 
-        # Learnable positional embeddings
+        # Positional embeddings (learnable + sinusoidal)
         self.pos_embedding = nn.Embedding(seq_len + 1, feature_dim)  # +1 for CLS
+        self.sinusoidal_pe = SinusoidalPositionalEncoding(feature_dim, max_len=seq_len + 1)
 
         # Transformer encoder blocks
         self.transformer_blocks = nn.ModuleList(
@@ -119,6 +149,7 @@ class TemporalTransformer(nn.Module):
         # Add positional embeddings
         positions = torch.arange(x.size(1), device=x.device)
         x = x + self.pos_embedding(positions)
+        x = self.sinusoidal_pe(x)
 
         # Transformer encoder blocks
         for block in self.transformer_blocks:
