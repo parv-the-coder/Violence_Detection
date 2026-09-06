@@ -16,9 +16,10 @@ from config import FEATURE_DIM, SEQUENCE_LENGTH, NUM_HEADS, NUM_TRANSFORMER_LAYE
 
 class TransformerEncoderBlock(nn.Module):
     """
-    A single Transformer Encoder block with Post-LayerNorm architecture:
-      MultiHeadAttention → Residual → LayerNorm
-      FFN(ReLU6) → Residual → LayerNorm
+    A single Transformer Encoder block with Pre-LayerNorm architecture.
+    Matches the original project's structure:
+      LayerNorm → MultiHeadAttention → Residual
+      LayerNorm → FFN(ReLU6) → Residual
     """
 
     def __init__(self, d_model: int, num_heads: int, dropout: float = 0.3):
@@ -45,13 +46,15 @@ class TransformerEncoderBlock(nn.Module):
         Returns:
             Output tensor of same shape.
         """
-        # Self-attention with residual, then norm
-        attn_output, _ = self.attention(x, x, x)
-        x = self.layernorm_1(x + attn_output)
+        # Pre-norm self-attention with residual
+        normed = self.layernorm_1(x)
+        attn_output, _ = self.attention(normed, normed, normed)
+        x = x + attn_output
 
-        # FFN with residual, then norm
-        ffn_output = self.ffn(x)
-        x = self.layernorm_2(x + ffn_output)
+        # Pre-norm FFN with residual
+        normed = self.layernorm_2(x)
+        ffn_output = self.ffn(normed)
+        x = x + ffn_output
         return x
 
 
