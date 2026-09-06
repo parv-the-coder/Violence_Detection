@@ -2,8 +2,7 @@
 PyTorch Training Script for Violence Detection.
 
 Trains the Temporal Transformer classifier on pre-extracted DINOv2 features.
-Logs metrics (accuracy, loss, ROC AUC) per epoch to CSV and checkpoints the
-model after every epoch.
+Logs metrics (accuracy, loss, ROC AUC) per epoch to CSV and saves model checkpoints.
 Uses PyTorch Dataset and DataLoader for efficient batching.
 """
 
@@ -205,7 +204,11 @@ def main():
 
     train_losses, test_losses = [], []
 
-    checkpoint_path = os.path.join(TRAIN_OUTPUT_DIR, "models", "last_model.pt")
+    # Early stopping & Best model tracking
+    best_roc = 0.0
+    patience = 5
+    epochs_no_improve = 0
+    best_model_path = os.path.join(TRAIN_OUTPUT_DIR, "models", "best_model.pt")
 
     for epoch in range(1, NUM_EPOCHS + 1):
         current_lr = INITIAL_LR * (LR_DECAY_RATE ** (epoch - 1))
@@ -238,15 +241,25 @@ def main():
         cm = confusion_matrix(test_labels_used, predicted_labels)
         print(f"  Confusion Matrix: {cm.tolist()}")
 
-        # Checkpoint after every epoch
-        torch.save({
-            "epoch": epoch,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "train_loss": train_loss,
-            "test_loss": test_loss,
-            "test_roc": test_roc,
-        }, checkpoint_path)
+        # Best Model Tracking & Early Stopping
+        if test_roc > best_roc:
+            best_roc = test_roc
+            epochs_no_improve = 0
+            torch.save({
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "train_loss": train_loss,
+                "test_loss": test_loss,
+                "test_roc": test_roc,
+            }, best_model_path)
+            print(f"  --> Saved new best model (ROC AUC: {best_roc:.4f})")
+        else:
+            epochs_no_improve += 1
+            print(f"  --> No improvement for {epochs_no_improve} epoch(s).")
+            if epochs_no_improve >= patience:
+                print(f"Early stopping triggered! Training halted after {epoch} epochs.")
+                break
 
         # Log to CSV
         with open(csv_path, "a", newline="") as f:
