@@ -40,6 +40,13 @@ ANNOTATION_FILE = os.path.join(PROJ_DIR, "Temporal_Anomaly_Annotation_for_Testin
 # Example: train_output/models/best_model.pt
 TRAIN_OUTPUT_DIR = os.path.join(PROJ_DIR, "train_output")
 
+# Direct path to a trained checkpoint. Falls back to the sibling model directory
+# used in this workspace if the checkpoint is not stored inside the repo.
+MODEL_CHECKPOINT_PATH = os.getenv(
+	"SURVEILLANCE_MODEL_PATH",
+	os.path.join(PROJ_DIR, "model", "best_model.pt"),
+)
+
 # ============================================================
 # DINOv2 Backbone Settings
 # ============================================================
