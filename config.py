@@ -4,12 +4,26 @@ All hyperparameters, paths, and model settings in one place.
 """
 
 import os
+from pathlib import Path
 
 # ============================================================
 # Paths
 # ============================================================
 # Absolute path to the project root directory
 PROJ_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ============================================================
+# Output directories for the surveillance extension
+# ============================================================
+OUTPUT_DIR = os.path.join(PROJ_DIR, "outputs")
+HEATMAP_DIR = os.path.join(OUTPUT_DIR, "heatmaps")
+REPORT_DIR = os.path.join(OUTPUT_DIR, "reports")
+SNAPSHOT_DIR = os.path.join(OUTPUT_DIR, "snapshots")
+TIMELINE_CSV = os.path.join(OUTPUT_DIR, "timeline.csv")
+EMAIL_STATE_FILE = os.path.join(OUTPUT_DIR, "email_state.json")
+
+# Temporary working directory used by the dashboard for uploaded videos.
+TEMP_DIR = os.path.join(OUTPUT_DIR, "temp")
 
 # Example structure for RAW_VIDEO_DIR (unzipped UCF-Crime dataset folders):
 # Data/
@@ -83,3 +97,13 @@ RANDOM_SEED = 42
 # ============================================================
 NPY_CHUNK_SIZE = 10000  # Frames per .npy chunk file
 TEST_SPLIT_RATIO = 0.2
+
+
+def ensure_runtime_dirs() -> None:
+	"""Create runtime output directories used by inference and the dashboard."""
+
+	for directory in [OUTPUT_DIR, HEATMAP_DIR, REPORT_DIR, SNAPSHOT_DIR, TEMP_DIR]:
+		Path(directory).mkdir(parents=True, exist_ok=True)
+
+
+ensure_runtime_dirs()
