@@ -20,7 +20,7 @@ class TimelineEvent:
 
 def format_timestamp(seconds: float) -> str:
     hours = int(seconds // 3600)
-    minutes = int(seconds // 60)
+    minutes = int((seconds % 3600) // 60)
     seconds_remainder = seconds % 60
     return f"{hours:02d}:{minutes:02d}:{seconds_remainder:05.2f}"
 
