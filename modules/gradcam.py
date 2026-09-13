@@ -70,14 +70,19 @@ class DinoV2AttentionRollout:
 
     @staticmethod
     def _normalize_heatmap(values: np.ndarray) -> np.ndarray:
-        """Scale raw attention weights into the 0-255 display range."""
+        """Stretch contrast so weak attention still shows visible hotspots."""
 
         values = values.astype(np.float32)
-        low = float(values.min())
-        high = float(values.max())
+        low = np.percentile(values, 5)
+        high = np.percentile(values, 95)
+        if high <= low:
+            low = float(values.min())
+            high = float(values.max())
         if high <= low:
             return np.zeros_like(values, dtype=np.uint8)
+        values = np.clip(values, low, high)
         values = (values - low) / (high - low)
+        values = np.power(values, 0.55)
         return np.uint8(np.clip(values * 255.0, 0, 255))
 
     @staticmethod
@@ -145,6 +150,8 @@ class DinoV2AttentionRollout:
         heatmap = tokens.reshape(side, side)
         heatmap = cv2.resize(heatmap, (image.width, image.height), interpolation=cv2.INTER_CUBIC)
         heatmap_uint8 = self._normalize_heatmap(heatmap)
+        if not np.any(heatmap_uint8):
+            return self.fallback_heatmap(image), "fallback-low-contrast"
         colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
         return colored, "cls-attention"
 
