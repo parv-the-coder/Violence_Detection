@@ -3,6 +3,9 @@
 venv/
 __pycache__/
 
+# Secrets -- never commit real credentials
+.env
+
 # Datasets and extracted frames
 Data/
 ucf_dataset_proc5/

@@ -98,6 +98,54 @@ RANDOM_SEED = 42
 NPY_CHUNK_SIZE = 10000  # Frames per .npy chunk file
 TEST_SPLIT_RATIO = 0.2
 
+# ============================================================
+# Surveillance Dashboard Settings
+# ============================================================
+DEFAULT_DETECTION_THRESHOLD = 0.80
+ALERT_EMAIL_SUBJECT = "URGENT: Violence Detected"
+REPORT_EMAIL_SUBJECT = "Surveillance Summary Report"
+PERIODIC_REPORT_INTERVAL_SECONDS = 2 * 60 * 60
+
+# File where the dashboard persists the operator-chosen recipient address.
+# Credentials are never written here; they come from the environment only.
+EMAIL_RECIPIENT_FILE = os.path.join(OUTPUT_DIR, "email_recipient.json")
+
+
+def _load_dotenv(path: str) -> None:
+	"""Populate os.environ from a KEY=VALUE .env file, if one exists.
+
+	Values already present in the environment win, so an exported variable
+	always overrides the file.
+	"""
+
+	if not os.path.exists(path):
+		return
+
+	with open(path, "r", encoding="utf-8") as handle:
+		for raw_line in handle:
+			line = raw_line.strip()
+			if not line or line.startswith("#") or "=" not in line:
+				continue
+			key, _, value = line.partition("=")
+			key = key.strip()
+			value = value.strip().strip("'\"")
+			if key and key not in os.environ:
+				os.environ[key] = value
+
+
+_load_dotenv(os.path.join(PROJ_DIR, ".env"))
+
+# ============================================================
+# Email Settings
+# ============================================================
+# Credentials are read from the environment (or a gitignored .env file).
+# Never hardcode an app password here -- see .env.example.
+EMAIL_SENDER = os.getenv("SURVEILLANCE_EMAIL_SENDER", "")
+EMAIL_PASSWORD = os.getenv("SURVEILLANCE_EMAIL_PASSWORD", "")
+EMAIL_RECIPIENT = os.getenv("SURVEILLANCE_EMAIL_RECIPIENT", "")
+SMTP_HOST = os.getenv("SURVEILLANCE_SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SURVEILLANCE_SMTP_PORT", "587"))
+
 
 def ensure_runtime_dirs() -> None:
 	"""Create runtime output directories used by inference and the dashboard."""
