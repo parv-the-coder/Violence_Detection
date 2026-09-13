@@ -150,5 +150,12 @@ class DinoV2AttentionRollout:
 
     @staticmethod
     def overlay(image_bgr: np.ndarray, heatmap_bgr: np.ndarray, alpha: float = 0.45) -> np.ndarray:
-
+        # The fallback heatmap is always 224x224, and a rollout map matches
+        # whichever frame produced it, so resize before blending.
+        if heatmap_bgr.shape[:2] != image_bgr.shape[:2]:
+            heatmap_bgr = cv2.resize(
+                heatmap_bgr,
+                (image_bgr.shape[1], image_bgr.shape[0]),
+                interpolation=cv2.INTER_CUBIC,
+            )
         return cv2.addWeighted(image_bgr, 1.0 - alpha, heatmap_bgr, alpha, 0)
