@@ -127,6 +127,14 @@ def preprocess_frame(frame_bgr: np.ndarray) -> Image.Image:
     return image
 
 
+def _extract_state_dict(checkpoint: object) -> dict:
+    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+        return checkpoint["model_state_dict"]
+    if isinstance(checkpoint, dict):
+        return checkpoint
+    raise ValueError("Unsupported checkpoint format. Expected a state dict or a dict containing 'model_state_dict'.")
+
+
 def load_models(device: Optional[torch.device] = None, checkpoint_path: Optional[str] = None):
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     spatial_model = DINOv2SpatialExtractor().to(device).eval()
@@ -146,7 +154,7 @@ def load_models(device: Optional[torch.device] = None, checkpoint_path: Optional
         )
 
     checkpoint = torch.load(best_model_path, map_location=device, weights_only=False)
-    temporal_model.load_state_dict(checkpoint)
+    temporal_model.load_state_dict(_extract_state_dict(checkpoint))
     return spatial_model, temporal_model, transform
 
 
