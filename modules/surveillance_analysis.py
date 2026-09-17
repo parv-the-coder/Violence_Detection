@@ -159,10 +159,14 @@ def load_models(device: Optional[torch.device] = None, checkpoint_path: Optional
 
 
 def _generate_heatmap(heatmap_engine: DinoV2AttentionRollout, frame_bgr: np.ndarray) -> tuple:
-    """Return (heatmap_bgr, mode) for a single frame."""
+    """Return (heatmap_bgr, mode), falling back to the edge map if rollout fails."""
 
     rgb_image = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
-    return heatmap_engine.generate(rgb_image)
+    try:
+        return heatmap_engine.generate(rgb_image)
+    except Exception as error:  # noqa: BLE001 - explainability must never break analysis
+        print(f"[WARN] Attention rollout failed ({error}); using fallback heatmap.")
+        return DinoV2AttentionRollout.fallback_heatmap(rgb_image), "fallback-exception"
 
 
 def _annotate_frame(
