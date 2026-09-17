@@ -330,6 +330,12 @@ def analyze_video(
         frame_buffer_preprocessed = []
         window_index += 1
 
+    # The final frames do not fill a whole window, so they are never scored.
+    # Pass them through unscored rather than truncating the annotated output.
+    if output_writer is not None and frame_buffer_bgr:
+        for bgr_frame in frame_buffer_bgr:
+            output_writer.write(bgr_frame)
+
     cap.release()
     if output_writer is not None:
         output_writer.release()
