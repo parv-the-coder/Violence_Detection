@@ -282,10 +282,12 @@ def analyze_video(
             if heatmap_engine is not None:
                 heatmap, heatmap_mode = _generate_heatmap(heatmap_engine, middle_frame)
 
+            # The heatmap is computed from the middle frame but overlaid on every
+            # frame in the window, so the detected segment keeps playing at full
+            # motion instead of freezing on a single still.
             if output_writer is not None:
-                annotated = _annotate_frame(middle_frame, violence_confidence, True, heatmap)
-                for _ in frame_buffer_bgr:
-                    output_writer.write(annotated)
+                for bgr_frame in frame_buffer_bgr:
+                    output_writer.write(_annotate_frame(bgr_frame, violence_confidence, True, heatmap))
 
             snapshot_name = f"snapshot_{window_index:05d}.jpg"
             snapshot_path = save_snapshot(middle_frame, SNAPSHOT_DIR, snapshot_name)
