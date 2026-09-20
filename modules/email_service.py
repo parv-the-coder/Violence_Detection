@@ -100,8 +100,14 @@ def send_email(subject: str, body: str, attachments: Optional[Iterable[str]] = N
 
     message = _build_message(subject, body, settings.sender, settings.recipient, attachments)
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
-        smtp.starttls()
-        smtp.login(settings.sender, settings.password)
-        smtp.send_message(message)
+    # A dead network or a rejected login must not abort an in-progress analysis,
+    # so delivery failures are reported via the return value instead of raising.
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
+            smtp.starttls()
+            smtp.login(settings.sender, settings.password)
+            smtp.send_message(message)
+    except (smtplib.SMTPException, OSError) as error:
+        print(f"[WARN] Email delivery failed: {error}")
+        return False
     return True
