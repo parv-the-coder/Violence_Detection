@@ -24,6 +24,15 @@ model/
 train_output/models/
 *.pt
 
+# Runtime artifacts produced by inference and the dashboard
+outputs/heatmaps/
+outputs/snapshots/
+outputs/reports/
+outputs/temp/
+outputs/timeline.csv
+outputs/email_state.json
+outputs/email_recipient.json
+
 # System files
 .DS_Store
 
